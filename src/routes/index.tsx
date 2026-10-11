@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Download,
   Lightbulb,
   Sparkles,
   XCircle,
@@ -171,6 +172,20 @@ function InsightIcon({ icon, severity }: { icon: Insight["icon"]; severity: Seve
     case "tip":
       return <Lightbulb className={cls} />;
   }
+}
+
+function exportCsv(runs: PipelineRun[]) {
+  const header = "run_id,pipeline_name,source_system,execution_date,status,duration_minutes,records_processed";
+  const rows = runs.map((r) =>
+    [r.run_id, r.pipeline_name, r.source_system, r.execution_date, r.status, r.duration_minutes, r.records_processed].join(","),
+  );
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "pipeline_runs.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function Dashboard() {
