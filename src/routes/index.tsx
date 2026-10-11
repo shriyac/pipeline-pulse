@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Lightbulb,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
+import {
   Bar,
   BarChart,
   CartesianGrid,
@@ -12,7 +21,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { generateRuns, PIPELINE_NAMES, SOURCE_SYSTEMS, type PipelineStatus } from "@/lib/pipeline-data";
+import { generateRuns, PIPELINE_NAMES, SOURCE_SYSTEMS, type PipelineRun, type PipelineStatus } from "@/lib/pipeline-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -45,9 +54,129 @@ const statusClass: Record<PipelineStatus, string> = {
   slow: "bg-warning/15 text-warning",
 };
 
+type Severity = "info" | "success" | "warning" | "critical";
+
+interface Insight {
+  severity: Severity;
+  icon: "health" | "failure" | "clock" | "tip";
+  title: string;
+  body: string;
+}
+
+function buildInsights(runs: PipelineRun[]): Insight[] {
+  if (runs.length === 0) return [];
+
+  const failedRuns = runs.filter((r) => r.status === "failed");
+  const successRate = ((runs.length - failedRuns.length) / runs.length) * 100;
+
+  // Pipeline with the highest failure count.
+  const failCount = new Map<string, number>();
+  for (const r of failedRuns) failCount.set(r.pipeline_name, (failCount.get(r.pipeline_name) ?? 0) + 1);
+  const topFailure = [...failCount.entries()].sort((a, b) => b[1] - a[1])[0];
+
+  // Pipeline with the longest average successful execution time.
+  const dur = new Map<string, { sum: number; n: number }>();
+  for (const r of runs) {
+    if (r.status === "failed") continue;
+    const d = dur.get(r.pipeline_name) ?? { sum: 0, n: 0 };
+    d.sum += r.duration_minutes;
+    d.n++;
+    dur.set(r.pipeline_name, d);
+  }
+  const slowest = [...dur.entries()]
+    .map(([name, d]) => ({ name, avg: d.sum / d.n }))
+    .sort((a, b) => b.avg - a.avg)[0];
+
+  const health: Insight =
+    successRate >= 95
+      ? {
+          severity: "success",
+          icon: "health",
+          title: "Overall pipeline health: Excellent",
+          body: `The current selection has a ${successRate.toFixed(1)}% success rate across ${runs.length} runs. Pipelines are operating within a healthy range.`,
+        }
+      : successRate >= 85
+        ? {
+            severity: "warning",
+            icon: "health",
+            title: "Overall pipeline health: Needs attention",
+            body: `The current selection has a ${successRate.toFixed(1)}% success rate across ${runs.length} runs. Failure levels are elevated and worth investigating.`,
+          }
+        : {
+            severity: "critical",
+            icon: "health",
+            title: "Overall pipeline health: At risk",
+            body: `The current selection has a ${successRate.toFixed(1)}% success rate across ${runs.length} runs. Failure levels are high and require immediate action.`,
+          };
+
+  const insights: Insight[] = [health];
+
+  if (topFailure) {
+    insights.push({
+      severity: topFailure[1] >= 10 ? "critical" : "warning",
+      icon: "failure",
+      title: "Highest failure count",
+      body: `${topFailure[0]} has the most failures with ${topFailure[1]} failed run${topFailure[1] === 1 ? "" : "s"} in the current selection.`,
+    });
+  }
+
+  if (slowest) {
+    insights.push({
+      severity: slowest.avg >= 60 ? "warning" : "info",
+      icon: "clock",
+      title: "Longest average runtime",
+      body: `${slowest.name} has the longest average successful execution time at ${slowest.avg.toFixed(1)} minutes per run.`,
+    });
+  }
+
+  const recs: string[] = [];
+  if (topFailure) recs.push(`Review recent error logs for ${topFailure[0]} and check for upstream schema or connectivity changes.`);
+  if (slowest) recs.push(`Profile ${slowest.name} for slow transformations or unindexed joins; consider partitioning or incremental loads.`);
+  if (successRate < 95) recs.push("Add alerting on failure spikes and retries with backoff for transient source errors.");
+  recs.push("Track slow runs week over week to catch performance regressions before they become failures.");
+
+  insights.push({
+    severity: "info",
+    icon: "tip",
+    title: "Recommended next steps",
+    body: recs.map((r) => `• ${r}`).join("\n"),
+  });
+
+  return insights;
+}
+
+const severityStyle: Record<Severity, string> = {
+  success: "border-success/40 bg-success/5",
+  info: "border-primary/40 bg-primary/5",
+  warning: "border-warning/40 bg-warning/5",
+  critical: "border-destructive/40 bg-destructive/5",
+};
+
+const iconStyle: Record<Severity, string> = {
+  success: "text-success",
+  info: "text-primary",
+  warning: "text-warning",
+  critical: "text-destructive",
+};
+
+function InsightIcon({ icon, severity }: { icon: Insight["icon"]; severity: Severity }) {
+  const cls = `h-5 w-5 shrink-0 ${iconStyle[severity]}`;
+  switch (icon) {
+    case "health":
+      return severity === "success" ? <CheckCircle2 className={cls} /> : severity === "critical" ? <XCircle className={cls} /> : <Activity className={cls} />;
+    case "failure":
+      return <AlertTriangle className={cls} />;
+    case "clock":
+      return <Clock className={cls} />;
+    case "tip":
+      return <Lightbulb className={cls} />;
+  }
+}
+
 function Dashboard() {
   const [source, setSource] = useState(ALL);
   const [pipeline, setPipeline] = useState(ALL);
+  const [showInsights, setShowInsights] = useState(false);
 
   const pipelineOptions = useMemo(
     () =>
@@ -88,6 +217,9 @@ function Dashboard() {
     for (const r of runs) if (r.status === "failed") map.set(r.pipeline_name, (map.get(r.pipeline_name) ?? 0) + 1);
     return [...map.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   }, [runs]);
+
+  // Derived from the filtered runs, so insights always reflect current filters.
+  const insights = useMemo(() => buildInsights(runs), [runs]);
 
   const cards = [
     { label: "Total Runs", value: kpis.total.toLocaleString() },
@@ -162,6 +294,46 @@ function Dashboard() {
           </ResponsiveContainer>
         </Panel>
       </section>
+
+      <Panel title="Pipeline Insights" className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Analyze the currently filtered runs with deterministic, rule-based logic.
+          </p>
+          <button
+            onClick={() => setShowInsights(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <Sparkles className="h-4 w-4" />
+            Generate Insights
+          </button>
+        </div>
+
+        {showInsights && (
+          <div className="mt-5">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Rule-Based Operational Insights
+            </p>
+            {insights.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                No runs match the current filters, so there is nothing to analyze. Adjust the filters and try again.
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {insights.map((ins) => (
+                  <div key={ins.title} className={`rounded-lg border p-4 ${severityStyle[ins.severity]}`}>
+                    <div className="flex items-center gap-2">
+                      <InsightIcon icon={ins.icon} severity={ins.severity} />
+                      <h3 className="text-sm font-semibold">{ins.title}</h3>
+                    </div>
+                    <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{ins.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Panel>
 
       <Panel title="Execution history (latest 20)" className="mt-6">
         <div className="overflow-x-auto">
