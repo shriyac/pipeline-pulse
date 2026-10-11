@@ -357,7 +357,7 @@ function Dashboard() {
                       <InsightIcon icon={ins.icon} severity={ins.severity} />
                       <h3 className="text-sm font-semibold">{ins.title}</h3>
                     </div>
-                    <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{ins.body}</p>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{ins.body}</p>
                   </div>
                 ))}
               </div>
@@ -406,6 +406,14 @@ function Dashboard() {
         </div>
       </Panel>
     </main>
+  );
+}
+
+function EmptyChart({ message = "No data for the current filters." }: { message?: string }) {
+  return (
+    <div className="flex h-[280px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+      {message}
+    </div>
   );
 }
 
