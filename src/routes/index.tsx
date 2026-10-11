@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -206,7 +206,7 @@ function Dashboard() {
   );
 }
 
-function Panel({ title, className = "", children }: { title: string; className?: string; children: React.ReactNode }) {
+function Panel({ title, className = "", children }: { title: string; className?: string; children: ReactNode }) {
   return (
     <div className={`rounded-xl border bg-card p-5 ${className}`}>
       <h2 className="mb-4 text-sm font-semibold">{title}</h2>
