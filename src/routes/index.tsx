@@ -259,7 +259,7 @@ function Dashboard() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">Data observability for your ETL pipelines</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <Select
             label="Source system"
             value={source}
@@ -270,6 +270,14 @@ function Dashboard() {
             }}
           />
           <Select label="Pipeline" value={pipeline} options={[ALL, ...pipelineOptions]} onChange={setPipeline} />
+          <button
+            onClick={() => exportCsv(runs)}
+            disabled={runs.length === 0}
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
         </div>
       </header>
 
@@ -284,29 +292,37 @@ function Dashboard() {
 
       <section className="mt-6 grid gap-6 lg:grid-cols-5">
         <Panel title="Daily execution trend" className="lg:col-span-3">
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={daily}>
-              <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
-              <XAxis dataKey="date" stroke={C.axis} fontSize={11} tickFormatter={(d: string) => d.slice(5)} />
-              <YAxis stroke={C.axis} fontSize={11} allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="success" stroke={C.success} dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="failed" stroke={C.failed} dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="slow" stroke={C.slow} dot={false} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          {daily.length === 0 ? (
+            <EmptyChart />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={daily} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke={C.axis} fontSize={11} tickFormatter={(d: string) => d.slice(5)} />
+                <YAxis stroke={C.axis} fontSize={11} allowDecimals={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconSize={10} />
+                <Line type="monotone" dataKey="success" stroke={C.success} dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="failed" stroke={C.failed} dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="slow" stroke={C.slow} dot={false} strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </Panel>
         <Panel title="Failures by pipeline" className="lg:col-span-2">
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={failures} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid stroke={C.grid} strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" stroke={C.axis} fontSize={11} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" stroke={C.axis} fontSize={10} width={120} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
-              <Bar dataKey="count" name="failures" fill={C.failed} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {failures.length === 0 ? (
+            <EmptyChart message="No failures in the current selection." />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={failures} layout="vertical" margin={{ top: 4, right: 8, left: 20, bottom: 0 }}>
+                <CartesianGrid stroke={C.grid} strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" stroke={C.axis} fontSize={11} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" stroke={C.axis} fontSize={10} width={120} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+                <Bar dataKey="count" name="failures" fill={C.failed} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </Panel>
       </section>
 
