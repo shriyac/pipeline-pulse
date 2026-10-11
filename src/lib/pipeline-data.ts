@@ -50,7 +50,7 @@ export function generateRuns(): PipelineRun[] {
   today.setUTCHours(0, 0, 0, 0);
 
   for (let i = 0; i < 500; i++) {
-    const pipeline = PIPELINES[Math.floor(rand() * PIPELINES.length)];
+    const pipeline = PIPELINES[Math.floor(rand() * PIPELINES.length)]!;
     // Spread over the last 60 days.
     const daysAgo = Math.floor(rand() * 60);
     const date = new Date(today);
